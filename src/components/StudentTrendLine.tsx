@@ -1,44 +1,20 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import type { EChartsOption } from 'echarts';
-import type { AttendanceRecord } from '@/lib/dataLoader';
-import {
-  calcStudentWeeklyTrends,
-  getRecentWeeks,
-  getLatestRecordDate,
-} from '@/lib/attendanceCalc';
+import type { StudentWeeklyTrend } from '@/lib/attendanceCalc';
 import { buildStudentLineOption } from '@/lib/chartConfigs';
 
 interface Props {
-  records: AttendanceRecord[];
-  selectedCoach: string;
+  data: StudentWeeklyTrend[];
+  coachName: string;
 }
 
-export default function StudentTrendLine({ records, selectedCoach }: Props) {
+export default function StudentTrendLine({ data, coachName }: Props) {
   const chartRef = useRef<ReactECharts>(null);
 
-  const chartOption = useMemo(() => {
-    if (records.length === 0 || !selectedCoach) {
-      return {
-        title: {
-          text: selectedCoach ? `【${selectedCoach}】学员出勤率趋势` : '学员出勤率趋势',
-          left: 'center',
-          top: 10,
-          textStyle: { fontSize: 18, fontWeight: 600, color: '#1f2937' },
-        },
-        graphic: {
-          type: 'text',
-          left: 'center',
-          top: 'middle',
-          style: { text: '请选择教练查看趋势', fontSize: 16, fill: '#9ca3af' },
-        },
-      };
-    }
-    const refDate = getLatestRecordDate(records);
-    const weeks = getRecentWeeks(refDate, 4);
-    const data = calcStudentWeeklyTrends(records, selectedCoach, weeks);
-    return buildStudentLineOption(data, selectedCoach);
-  }, [records, selectedCoach]);
+  const chartOption = useMemo(
+    () => buildStudentLineOption(data, coachName),
+    [data, coachName]
+  );
 
   useEffect(() => {
     const handleResize = () => {

@@ -1,19 +1,13 @@
-import { useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import type { AttendanceRecord } from '@/lib/dataLoader';
-import { calcLowAttendanceList, formatPercent } from '@/lib/attendanceCalc';
+import type { LowAttendanceItem } from '@/lib/attendanceCalc';
+import { formatPercent } from '@/lib/attendanceCalc';
 
 interface Props {
-  records: AttendanceRecord[];
+  data: LowAttendanceItem[];
   threshold?: number;
 }
 
-export default function LowAttendanceTable({ records, threshold = 0.6 }: Props) {
-  const list = useMemo(
-    () => calcLowAttendanceList(records, threshold),
-    [records, threshold]
-  );
-
+export default function LowAttendanceTable({ data, threshold = 0.6 }: Props) {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 h-full flex flex-col">
       <div className="flex items-center gap-2 mb-4">
@@ -25,13 +19,13 @@ export default function LowAttendanceTable({ records, threshold = 0.6 }: Props) 
             出勤率低于 {formatPercent(threshold)} 的学员
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            共 {list.length} 组需要关注的「教练-学员」组合
+            共 {data.length} 组需要关注的「教练-学员」组合
           </p>
         </div>
       </div>
 
       <div className="flex-1 overflow-auto -mx-1">
-        {list.length === 0 ? (
+        {data.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 py-10">
             <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center mb-3">
               <svg
@@ -58,7 +52,7 @@ export default function LowAttendanceTable({ records, threshold = 0.6 }: Props) 
               </tr>
             </thead>
             <tbody>
-              {list.map((item, idx) => {
+              {data.map((item, idx) => {
                 const rate = item.attendanceRate;
                 let rateColor = 'text-red-600 bg-red-50';
                 if (rate >= 0.5 && rate < threshold) {

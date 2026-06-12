@@ -1,86 +1,43 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Upload, BarChart3, Users, Table2, FileText, Dumbbell } from 'lucide-react';
-import type { AttendanceRecord } from '@/lib/dataLoader';
+import { useEffect, useRef } from 'react';
+import { Upload, BarChart3, Users, Table2, FileText, Dumbbell, Calendar } from 'lucide-react';
 import { loadSampleCSV, loadCSVFromFile } from '@/lib/dataLoader';
-import {
-  getCoachList,
-  formatPercent,
-  calcCoachWeeklyRates,
-  getRecentWeeks,
-  getLatestRecordDate,
-} from '@/lib/attendanceCalc';
+import { formatPercent } from '@/lib/attendanceCalc';
+import { useDashboardStore, type TimeWindow } from '@/store/dashboardStore';
 import CoachAttendanceBar from '@/components/CoachAttendanceBar';
 import StudentTrendLine from '@/components/StudentTrendLine';
 import LowAttendanceTable from '@/components/LowAttendanceTable';
 
+const WINDOW_OPTIONS: { value: TimeWindow; label: string }[] = [
+  { value: '4weeks', label: '近 4 周' },
+  { value: '8weeks', label: '近 8 周' },
+  { value: 'all', label: '全部' },
+];
+
 export default function Home() {
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedCoach, setSelectedCoach] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    loading,
+    selectedCoach,
+    timeWindow,
+    overallStats,
+    coachWeeklyRates,
+    coachSummaries,
+    studentTrends,
+    lowAttendanceList,
+    setRecords,
+    setLoading,
+    setTimeWindow,
+    setSelectedCoach,
+  } = useDashboardStore();
 
   useEffect(() => {
     loadSampleCSV()
       .then((data) => {
         setRecords(data);
-        if (data.length > 0) {
-          const coaches = getCoachList(data);
-          setSelectedCoach(coaches[0] ?? '');
-        }
       })
       .finally(() => setLoading(false));
-  }, []);
-
-  const coachList = useMemo(() => getCoachList(records), [records]);
-
-  useEffect(() => {
-    if (coachList.length > 0 && !coachList.includes(selectedCoach)) {
-      setSelectedCoach(coachList[0]);
-    }
-  }, [coachList, selectedCoach]);
-
-  const stats = useMemo(() => {
-    if (records.length === 0) {
-      return {
-        totalShould: 0,
-        totalActual: 0,
-        overallRate: 0,
-        coachCount: 0,
-        studentCount: 0,
-      };
-    }
-    const totalShould = records.reduce((s, r) => s + r.shouldAttend, 0);
-    const totalActual = records.reduce((s, r) => s + r.actualAttend, 0);
-    const studentCount = new Set(records.map((r) => r.studentName)).size;
-    return {
-      totalShould,
-      totalActual,
-      overallRate: totalShould === 0 ? 0 : totalActual / totalShould,
-      coachCount: coachList.length,
-      studentCount,
-    };
-  }, [records, coachList]);
-
-  const coachLatestRates = useMemo(() => {
-    if (records.length === 0) return new Map<string, number>();
-    const refDate = getLatestRecordDate(records);
-    const weeks = getRecentWeeks(refDate, 4);
-    const data = calcCoachWeeklyRates(records, weeks);
-    const map = new Map<string, { sum: number; count: number }>();
-    for (const d of data) {
-      if (!map.has(d.coachName)) map.set(d.coachName, { sum: 0, count: 0 });
-      const acc = map.get(d.coachName)!;
-      if (d.shouldCount > 0) {
-        acc.sum += d.attendanceRate;
-        acc.count += 1;
-      }
-    }
-    const result = new Map<string, number>();
-    for (const [name, { sum, count }] of map) {
-      result.set(name, count === 0 ? 0 : sum / count);
-    }
-    return result;
-  }, [records]);
+  }, [setRecords, setLoading]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -89,10 +46,6 @@ export default function Home() {
     try {
       const data = await loadCSVFromFile(file);
       setRecords(data);
-      if (data.length > 0) {
-        const coaches = getCoachList(data);
-        setSelectedCoach(coaches[0] ?? '');
-      }
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -104,10 +57,6 @@ export default function Home() {
     try {
       const data = await loadSampleCSV();
       setRecords(data);
-      if (data.length > 0) {
-        const coaches = getCoachList(data);
-        setSelectedCoach(coaches[0] ?? '');
-      }
     } finally {
       setLoading(false);
     }
@@ -116,7 +65,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-stone-50">
       <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm">
-        <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-200">
               <Dumbbell className="w-6 h-6 text-white" />
@@ -132,6 +81,22 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              {WINDOW_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setTimeWindow(opt.value)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    timeWindow === opt.value
+                      ? 'bg-white text-orange-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
             <button
               onClick={handleUseSample}
               className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-colors"
@@ -162,15 +127,15 @@ export default function Home() {
           <StatCard
             icon={<BarChart3 className="w-5 h-5" />}
             label="整体出勤率"
-            value={formatPercent(stats.overallRate)}
-            sub={`${stats.totalActual} / ${stats.totalShould} 节课`}
+            value={formatPercent(overallStats.attendanceRate)}
+            sub={`${overallStats.totalActual} / ${overallStats.totalShould} 节课`}
             accent="from-emerald-500 to-teal-600"
             loading={loading}
           />
           <StatCard
             icon={<Users className="w-5 h-5" />}
             label="教练数"
-            value={`${stats.coachCount}`}
+            value={`${overallStats.coachCount}`}
             sub="位在职教练"
             accent="from-sky-500 to-blue-600"
             loading={loading}
@@ -178,15 +143,15 @@ export default function Home() {
           <StatCard
             icon={<Users className="w-5 h-5" />}
             label="学员数"
-            value={`${stats.studentCount}`}
+            value={`${overallStats.studentCount}`}
             sub="名注册学员"
             accent="from-violet-500 to-purple-600"
             loading={loading}
           />
           <StatCard
-            icon={<Table2 className="w-5 h-5" />}
+            icon={<Calendar className="w-5 h-5" />}
             label="总记录数"
-            value={`${records.length}`}
+            value={`${overallStats.recordCount}`}
             sub="条出勤记录"
             accent="from-rose-500 to-pink-600"
             loading={loading}
@@ -204,7 +169,7 @@ export default function Home() {
           <>
             <section className="grid grid-cols-1 xl:grid-cols-5 gap-5">
               <div className="xl:col-span-3 min-h-[380px] flex flex-col">
-                <CoachAttendanceBar records={records} />
+                <CoachAttendanceBar data={coachWeeklyRates} />
               </div>
               <div className="xl:col-span-2 min-h-[380px] flex flex-col">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-3">
@@ -222,23 +187,20 @@ export default function Home() {
                       onChange={(e) => setSelectedCoach(e.target.value)}
                       className="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 transition-all"
                     >
-                      {coachList.map((c) => {
-                        const rate = coachLatestRates.get(c) ?? 0;
-                        return (
-                          <option key={c} value={c}>
-                            {c}（近4周均 {formatPercent(rate)}）
-                          </option>
-                        );
-                      })}
+                      {coachSummaries.map((c) => (
+                        <option key={c.coachName} value={c.coachName}>
+                          {c.coachName}（均 {formatPercent(c.avgAttendanceRate)}）
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
-                <StudentTrendLine records={records} selectedCoach={selectedCoach} />
+                <StudentTrendLine data={studentTrends} coachName={selectedCoach} />
               </div>
             </section>
 
             <section className="min-h-[380px]">
-              <LowAttendanceTable records={records} threshold={0.6} />
+              <LowAttendanceTable data={lowAttendanceList} threshold={0.6} />
             </section>
           </>
         )}
