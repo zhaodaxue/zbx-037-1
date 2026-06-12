@@ -1,19 +1,25 @@
 import { useEffect, useRef, useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
+import type { EChartsOption } from 'echarts';
 import type { StudentWeeklyTrend } from '@/lib/attendanceCalc';
 import { buildStudentLineOption } from '@/lib/chartConfigs';
 
 interface Props {
   data: StudentWeeklyTrend[];
   coachName: string;
+  highlightStudent?: string;
 }
 
-export default function StudentTrendLine({ data, coachName }: Props) {
+export default function StudentTrendLine({
+  data,
+  coachName,
+  highlightStudent,
+}: Props) {
   const chartRef = useRef<ReactECharts>(null);
 
-  const chartOption = useMemo(
-    () => buildStudentLineOption(data, coachName),
-    [data, coachName]
+  const chartOption = useMemo<EChartsOption>(
+    () => buildStudentLineOption(data, coachName, highlightStudent),
+    [data, coachName, highlightStudent]
   );
 
   useEffect(() => {

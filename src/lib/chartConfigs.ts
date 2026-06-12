@@ -24,7 +24,8 @@ const STUDENT_COLORS = [
 ];
 
 export function buildCoachBarOption(
-  data: CoachWeeklyAttendance[]
+  data: CoachWeeklyAttendance[],
+  windowLabel: string = '近4周'
 ): EChartsOption {
   const weekLabels = Array.from(new Set(data.map((d) => d.weekLabel)));
   const coachNames = Array.from(new Set(data.map((d) => d.coachName)));
@@ -52,7 +53,7 @@ export function buildCoachBarOption(
 
   return {
     title: {
-      text: '各教练近4周出勤率',
+      text: `各教练${windowLabel}出勤率`,
       left: 'center',
       top: 10,
       textStyle: {
@@ -123,12 +124,13 @@ export function buildCoachBarOption(
 
 export function buildStudentLineOption(
   data: StudentWeeklyTrend[],
-  coachName: string
+  coachName: string,
+  highlightStudent?: string
 ): EChartsOption {
   if (data.length === 0) {
     return {
       title: {
-        text: `【${coachName}】学员出勤率趋势`,
+        text: `【${coachName}】学员出勤率趋势${highlightStudent ? ' · 聚焦' : ''}`,
         left: 'center',
         top: 10,
         textStyle: {
@@ -160,32 +162,42 @@ export function buildStudentLineOption(
   }
 
   const weekLabels = data[0].weekLabels;
+  const HIGHLIGHT_COLOR = '#dc2626';
 
-  const series = data.map((trend, idx) => ({
-    name: trend.studentName,
-    type: 'line' as const,
-    data: trend.rates.map((r) => Math.round(r * 1000) / 10),
-    smooth: true,
-    symbol: 'circle' as const,
-    symbolSize: 8,
-    lineStyle: {
-      width: 3,
-      color: STUDENT_COLORS[idx % STUDENT_COLORS.length],
-    },
-    itemStyle: {
-      color: STUDENT_COLORS[idx % STUDENT_COLORS.length],
-      borderWidth: 2,
-      borderColor: '#fff',
-    },
-    emphasis: {
-      focus: 'series' as const,
-      scale: true,
-    },
-  }));
+  const series = data.map((trend, idx) => {
+    const isHighlight = highlightStudent && trend.studentName === highlightStudent;
+    const displayName = isHighlight ? `★ ${trend.studentName}` : trend.studentName;
+    const color = isHighlight ? HIGHLIGHT_COLOR : STUDENT_COLORS[idx % STUDENT_COLORS.length];
+
+    return {
+      name: displayName,
+      type: 'line' as const,
+      data: trend.rates.map((r) => Math.round(r * 1000) / 10),
+      smooth: true,
+      symbol: 'circle' as const,
+      symbolSize: isHighlight ? 12 : 8,
+      z: isHighlight ? 10 : 1,
+      lineStyle: {
+        width: isHighlight ? 5 : 3,
+        color,
+        shadowBlur: isHighlight ? 8 : 0,
+        shadowColor: isHighlight ? 'rgba(220, 38, 38, 0.35)' : 'transparent',
+      },
+      itemStyle: {
+        color,
+        borderWidth: isHighlight ? 3 : 2,
+        borderColor: '#fff',
+      },
+      emphasis: {
+        focus: 'series' as const,
+        scale: isHighlight ? true : true,
+      },
+    };
+  });
 
   return {
     title: {
-      text: `【${coachName}】学员出勤率趋势`,
+      text: `【${coachName}】学员出勤率趋势${highlightStudent ? ' · 聚焦' : ''}`,
       left: 'center',
       top: 10,
       textStyle: {
@@ -200,9 +212,11 @@ export function buildStudentLineOption(
         const week = params[0].axisValue;
         let html = `<div style="font-weight:600;margin-bottom:6px;">${week}</div>`;
         params.forEach((p: any) => {
+          const isFocus = p.seriesName.startsWith('★ ');
+          const name = isFocus ? p.seriesName.slice(2) : p.seriesName;
           html += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
-            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color};"></span>
-            <span>${p.seriesName}：<b>${p.value}%</b></span>
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color};${isFocus ? 'box-shadow:0 0 0 2px #fff,0 0 0 3px ' + p.color : ''}"></span>
+            <span>${isFocus ? '★ <b>' : ''}${name}${isFocus ? '</b>' : ''}：<b style="color:${p.color};">${p.value}%</b></span>
           </div>`;
         });
         return html;

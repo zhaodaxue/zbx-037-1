@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { Upload, BarChart3, Users, Table2, FileText, Dumbbell, Calendar } from 'lucide-react';
 import { loadSampleCSV, loadCSVFromFile } from '@/lib/dataLoader';
 import { formatPercent } from '@/lib/attendanceCalc';
@@ -7,10 +7,10 @@ import CoachAttendanceBar from '@/components/CoachAttendanceBar';
 import StudentTrendLine from '@/components/StudentTrendLine';
 import LowAttendanceTable from '@/components/LowAttendanceTable';
 
-const WINDOW_OPTIONS: { value: TimeWindow; label: string }[] = [
-  { value: '4weeks', label: '近 4 周' },
-  { value: '8weeks', label: '近 8 周' },
-  { value: 'all', label: '全部' },
+const WINDOW_OPTIONS: { value: TimeWindow; label: string; chartLabel: string }[] = [
+  { value: '4weeks', label: '近 4 周', chartLabel: '近4周' },
+  { value: '8weeks', label: '近 8 周', chartLabel: '近8周' },
+  { value: 'all', label: '全部', chartLabel: '全期' },
 ];
 
 export default function Home() {
@@ -20,6 +20,7 @@ export default function Home() {
     loading,
     selectedCoach,
     timeWindow,
+    focusStudent,
     overallStats,
     coachWeeklyRates,
     coachSummaries,
@@ -29,7 +30,15 @@ export default function Home() {
     setLoading,
     setTimeWindow,
     setSelectedCoach,
+    focusOnStudent,
+    clearFocus,
+    handleCoachClick,
   } = useDashboardStore();
+
+  const windowChartLabel = useMemo(
+    () => WINDOW_OPTIONS.find((o) => o.value === timeWindow)?.chartLabel ?? '近4周',
+    [timeWindow]
+  );
 
   useEffect(() => {
     loadSampleCSV()
@@ -169,7 +178,11 @@ export default function Home() {
           <>
             <section className="grid grid-cols-1 xl:grid-cols-5 gap-5">
               <div className="xl:col-span-3 min-h-[380px] flex flex-col">
-                <CoachAttendanceBar data={coachWeeklyRates} />
+                <CoachAttendanceBar
+                  data={coachWeeklyRates}
+                  windowLabel={windowChartLabel}
+                  onCoachClick={handleCoachClick}
+                />
               </div>
               <div className="xl:col-span-2 min-h-[380px] flex flex-col">
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-3">
@@ -180,27 +193,53 @@ export default function Home() {
                       </h3>
                       <p className="text-xs text-gray-400 mt-0.5">
                         展示该教练下学员每周出勤率变化
+                        {focusStudent && (
+                          <span className="ml-1 text-amber-600 font-medium">
+                            · 聚焦：{focusStudent}
+                          </span>
+                        )}
                       </p>
                     </div>
-                    <select
-                      value={selectedCoach}
-                      onChange={(e) => setSelectedCoach(e.target.value)}
-                      className="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 transition-all"
-                    >
-                      {coachSummaries.map((c) => (
-                        <option key={c.coachName} value={c.coachName}>
-                          {c.coachName}（均 {formatPercent(c.avgAttendanceRate)}）
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-2">
+                      {focusStudent && (
+                        <button
+                          onClick={clearFocus}
+                          className="px-2 py-1 rounded-md text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                        >
+                          取消聚焦
+                        </button>
+                      )}
+                      <select
+                        value={selectedCoach}
+                        onChange={(e) => setSelectedCoach(e.target.value)}
+                        className="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 transition-all"
+                      >
+                        {coachSummaries.map((c) => (
+                          <option key={c.coachName} value={c.coachName}>
+                            {c.coachName}（均 {formatPercent(c.avgAttendanceRate)}）
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
-                <StudentTrendLine data={studentTrends} coachName={selectedCoach} />
+                <StudentTrendLine
+                  data={studentTrends}
+                  coachName={selectedCoach}
+                  highlightStudent={focusStudent || undefined}
+                />
               </div>
             </section>
 
             <section className="min-h-[380px]">
-              <LowAttendanceTable data={lowAttendanceList} threshold={0.6} />
+              <LowAttendanceTable
+                data={lowAttendanceList}
+                threshold={0.6}
+                focusCoach={selectedCoach}
+                focusStudent={focusStudent}
+                onRowClick={focusOnStudent}
+                onClearFocus={clearFocus}
+              />
             </section>
           </>
         )}

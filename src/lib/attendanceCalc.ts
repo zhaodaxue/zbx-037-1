@@ -165,7 +165,8 @@ export function calcStudentWeeklyTrends(
   records: AttendanceRecord[],
   coachName: string,
   weeks: Date[],
-  topCount: number = 5
+  topCount: number = 5,
+  forceStudent?: string
 ): StudentWeeklyTrend[] {
   const coachRecords = records.filter((r) => r.coachName === coachName);
   const studentNames = Array.from(new Set(coachRecords.map((r) => r.studentName)));
@@ -177,11 +178,23 @@ export function calcStudentWeeklyTrends(
     return { name, totalShould, totalActual };
   });
 
-  const topStudents = studentStats
+  const sortedStats = studentStats
     .filter((s) => s.totalShould > 0)
-    .sort((a, b) => b.totalShould - a.totalShould)
-    .slice(0, topCount)
-    .map((s) => s.name);
+    .sort((a, b) => b.totalShould - a.totalShould);
+
+  let topStudents: string[];
+  if (forceStudent) {
+    const forceStat = sortedStats.find((s) => s.name === forceStudent);
+    if (forceStat) {
+      const rest = sortedStats.filter((s) => s.name !== forceStudent);
+      const restCount = Math.max(0, topCount - 1);
+      topStudents = [forceStudent, ...rest.slice(0, restCount).map((s) => s.name)];
+    } else {
+      topStudents = sortedStats.slice(0, topCount).map((s) => s.name);
+    }
+  } else {
+    topStudents = sortedStats.slice(0, topCount).map((s) => s.name);
+  }
 
   const trends: StudentWeeklyTrend[] = [];
 
@@ -212,6 +225,19 @@ export function calcStudentWeeklyTrends(
   }
 
   return trends;
+}
+
+export function hasCoachStudentPair(
+  records: AttendanceRecord[],
+  coachName: string,
+  studentName: string
+): boolean {
+  if (!coachName || !studentName) return false;
+  const pair = records.find(
+    (r) => r.coachName === coachName && r.studentName === studentName
+  );
+  if (!pair) return false;
+  return pair.shouldAttend > 0;
 }
 
 export function calcLowAttendanceList(
